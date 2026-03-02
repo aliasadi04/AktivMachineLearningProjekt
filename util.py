@@ -107,42 +107,6 @@ def plot_kernel_landscapes2(all_results, peak_name, trial_idx=0):
     plt.show()
 
 
-def plot_predicted_surface(bo, coords, N, true_surface=None):
-    """
-    coords: (N*N, 2) array of [lon, lat] pairs (same as your meshgrid reshaped)
-    N: grid resolution per axis
-    """
-    mean, var = bo.model.model.predict(coords)
-    mean = -mean.reshape(N, N)  # negate since GPyOpt minimizes
-    std = np.sqrt(var.reshape(N, N))
-
-    lon_range = [coords[:, 0].min(), coords[:, 0].max()]
-    lat_range = [coords[:, 1].min(), coords[:, 1].max()]
-    extent = [lon_range[0], lon_range[1], lat_range[0], lat_range[1]]
-
-    fig, axes = plt.subplots(1, 3 if true_surface is not None else 2, figsize=(18, 5))
-    idx = 0
-
-    if true_surface is not None:
-        axes[idx].imshow(
-            true_surface.T, cmap="terrain", origin="lower", extent=extent, aspect="auto"
-        )
-        axes[idx].set_title("True Surface")
-        idx += 1
-
-    axes[idx].imshow(
-        mean.T, cmap="terrain", origin="lower", extent=extent, aspect="auto"
-    )
-    axes[idx].scatter(bo.X[:, 0], bo.X[:, 1], c="red", s=10, zorder=5)
-    axes[idx].set_title("GP Predicted Surface")
-    idx += 1
-
-    axes[idx].imshow(
-        std.T, cmap="viridis", origin="lower", extent=extent, aspect="auto"
-    )
-    axes[idx].scatter(bo.X[:, 0], bo.X[:, 1], c="red", s=10, zorder=5)
-
-
 def plot_simple_regret(bo, true_max):
     Y = bo.Y.flatten()
     best_so_far = np.maximum.accumulate(-Y)  # GPyOpt minimizes, so negate
@@ -153,13 +117,15 @@ def plot_simple_regret(bo, true_max):
     plt.title("Simple Regret")
 
 
-def make_equal_area_box(lat, lon, half_km=5):
-    """Create a box of approximately half_km × half_km centered on (lat, lon)"""
+def make_equal_area_box(lon, lat, half_km=5):
+    """Create a box of approximately half_km × half_km centered on (lon, lat)"""
     lat_half = half_km / 111.0  # 1 deg lat ≈ 111 km
-    lon_half = half_km / (111.0 * math.cos(math.radians(lat)))
+    # Clamp latitude slightly away from the poles to avoid division by zero at ±90°
+    safe_lat = max(min(lat, 89.9999), -89.9999)
+    lon_half = half_km / (111.0 * math.cos(math.radians(safe_lat)))
     return {
-        "latitude": (lat - lat_half, lat + lat_half),
         "longitude": (lon - lon_half, lon + lon_half),
+        "latitude": (lat - lat_half, lat + lat_half),
     }
 
 
@@ -181,7 +147,11 @@ def query(points_lonlat, vrt_path="G:\\data\\zipData\\nasadem_all\\nasadem.vrt")
 def BO_results(bo, x, y, N):
     plt.figure("Optimization progress")
     im = plt.imshow(
-        y, cmap="viridis", origin="lower", extent=[x[0][0], x[0][-1], x[1][0], x[1][-1]]
+        y,
+        cmap="viridis",
+        origin="lower",
+        extent=[x[0][0], x[0][-1], x[1][0], x[1][-1]],
+        aspect="equal",
     )
     plt.plot(bo.X[:, 0], bo.X[:, 1], "ro:")
     for i, xx in enumerate(bo.X):
@@ -195,6 +165,7 @@ def BO_results(bo, x, y, N):
         cmap="viridis",
         origin="lower",
         extent=[x[0][0], x[0][-1], x[1][0], x[1][-1]],
+        aspect="auto",
     )
     plt.subplot(1, 2, 2)
     plt.title("variance")
@@ -203,6 +174,7 @@ def BO_results(bo, x, y, N):
         cmap="viridis",
         origin="lower",
         extent=[x[0][0], x[0][-1], x[1][0], x[1][-1]],
+        aspect="auto",
     )
     # plt.suptitle('Approximated function')
     plt.figure("Acquisition function")
@@ -211,4 +183,5 @@ def BO_results(bo, x, y, N):
         cmap="viridis",
         origin="lower",
         extent=[x[0][0], x[0][-1], x[1][0], x[1][-1]],
+        aspect="auto",
     )
